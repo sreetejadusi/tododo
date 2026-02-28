@@ -29,20 +29,4 @@ class HiveService {
   }
 
   Box<Task> get taskBox => Hive.box<Task>(taskBoxName);
-
-  Future<List<Task>> getTasks() async {
-    return taskBox.values.toList(growable: false);
-  }
-
-  Future<void> saveTask(Task task) async {
-    await taskBox.put(task.id, task);
-  }
-
-  Future<void> deleteTask(String id) async {
-    await taskBox.delete(id);
-  }
-
-  Future<void> clearTasks() async {
-    await taskBox.clear();
-  }
 }
