@@ -19,6 +19,26 @@ class Task {
   final DateTime createdAt;
   final bool isCompleted;
 
+  Task copyWith({
+    String? id,
+    String? title,
+    String? description,
+    TaskPriority? priority,
+    DateTime? dueDate,
+    DateTime? createdAt,
+    bool? isCompleted,
+  }) {
+    return Task(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      priority: priority ?? this.priority,
+      dueDate: dueDate ?? this.dueDate,
+      createdAt: createdAt ?? this.createdAt,
+      isCompleted: isCompleted ?? this.isCompleted,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
