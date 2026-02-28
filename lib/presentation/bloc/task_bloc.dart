@@ -8,43 +8,47 @@ import 'task_state.dart';
 class TaskBloc extends Bloc<TaskEvent, TaskState> {
   TaskBloc({required TaskRepository taskRepository})
     : _taskRepository = taskRepository,
-      super(TaskState.initial()) {
+      super(const TaskInitial()) {
     on<LoadTasks>(_onLoadTasks);
     on<AddTask>(_onAddTask);
     on<UpdateTask>(_onUpdateTask);
     on<DeleteTask>(_onDeleteTask);
     on<SortTasks>(_onSortTasks);
     on<SearchTasks>(_onSearchTasks);
+    on<ReorderTasks>(_onReorderTasks);
   }
 
   final TaskRepository _taskRepository;
 
   Future<void> _onLoadTasks(LoadTasks event, Emitter<TaskState> emit) async {
-    emit(state.copyWith(status: TaskStatus.loading, errorMessage: null));
+    final previousState = state;
+    emit(const TaskLoading());
 
     try {
       final storedTasks = await _taskRepository.getTasks();
-      final visibleTasks = _applyFiltersAndSorting(
+      final sortType = previousState is TaskLoaded
+          ? previousState.sortType
+          : TaskSortType.createdNewest;
+      final searchQuery = previousState is TaskLoaded
+          ? previousState.searchQuery
+          : '';
+
+      final visibleTasks = _applySearchAndSort(
         tasks: storedTasks,
-        query: state.searchQuery,
-        sortType: state.sortType,
+        query: searchQuery,
+        sortType: sortType,
       );
 
       emit(
-        state.copyWith(
-          status: TaskStatus.success,
+        TaskLoaded(
+          tasks: visibleTasks,
           allTasks: storedTasks,
-          visibleTasks: visibleTasks,
-          errorMessage: null,
+          sortType: sortType,
+          searchQuery: searchQuery,
         ),
       );
     } catch (error) {
-      emit(
-        state.copyWith(
-          status: TaskStatus.failure,
-          errorMessage: error.toString(),
-        ),
-      );
+      emit(TaskError(error.toString()));
     }
   }
 
@@ -53,12 +57,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
       await _taskRepository.createTask(event.task);
       add(const LoadTasks());
     } catch (error) {
-      emit(
-        state.copyWith(
-          status: TaskStatus.failure,
-          errorMessage: error.toString(),
-        ),
-      );
+      emit(TaskError(error.toString()));
     }
   }
 
@@ -67,12 +66,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
       await _taskRepository.updateTask(event.task);
       add(const LoadTasks());
     } catch (error) {
-      emit(
-        state.copyWith(
-          status: TaskStatus.failure,
-          errorMessage: error.toString(),
-        ),
-      );
+      emit(TaskError(error.toString()));
     }
   }
 
@@ -81,75 +75,150 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
       await _taskRepository.deleteTask(event.id);
       add(const LoadTasks());
     } catch (error) {
-      emit(
-        state.copyWith(
-          status: TaskStatus.failure,
-          errorMessage: error.toString(),
-        ),
-      );
+      emit(TaskError(error.toString()));
     }
   }
 
   void _onSortTasks(SortTasks event, Emitter<TaskState> emit) {
-    final visibleTasks = _applyFiltersAndSorting(
-      tasks: state.allTasks,
-      query: state.searchQuery,
+    final currentState = state;
+    if (currentState is! TaskLoaded) {
+      return;
+    }
+
+    final tasks = _applySearchAndSort(
+      tasks: currentState.allTasks,
+      query: currentState.searchQuery,
       sortType: event.sortType,
     );
 
-    emit(state.copyWith(sortType: event.sortType, visibleTasks: visibleTasks));
+    emit(currentState.copyWith(tasks: tasks, sortType: event.sortType));
   }
 
   void _onSearchTasks(SearchTasks event, Emitter<TaskState> emit) {
+    final currentState = state;
+    if (currentState is! TaskLoaded) {
+      return;
+    }
+
     final query = event.query.trim();
-    final visibleTasks = _applyFiltersAndSorting(
-      tasks: state.allTasks,
+    final tasks = _applySearchAndSort(
+      tasks: currentState.allTasks,
       query: query,
-      sortType: state.sortType,
+      sortType: currentState.sortType,
     );
 
-    emit(state.copyWith(searchQuery: query, visibleTasks: visibleTasks));
+    emit(currentState.copyWith(tasks: tasks, searchQuery: query));
   }
 
-  List<Task> _applyFiltersAndSorting({
+  void _onReorderTasks(ReorderTasks event, Emitter<TaskState> emit) {
+    final currentState = state;
+    if (currentState is! TaskLoaded) {
+      return;
+    }
+
+    final tasks = currentState.tasks.toList(growable: false);
+    if (tasks.isEmpty) {
+      return;
+    }
+
+    var targetIndex = event.newIndex;
+    if (event.oldIndex < targetIndex) {
+      targetIndex -= 1;
+    }
+
+    if (event.oldIndex < 0 ||
+        event.oldIndex >= tasks.length ||
+        targetIndex < 0 ||
+        targetIndex >= tasks.length) {
+      return;
+    }
+
+    final reorderedVisible = tasks.toList(growable: false);
+    final moved = reorderedVisible.removeAt(event.oldIndex);
+    reorderedVisible.insert(targetIndex, moved);
+
+    final reorderedAll = _reorderAllTasks(
+      allTasks: currentState.allTasks,
+      previousVisible: currentState.tasks,
+      reorderedVisible: reorderedVisible,
+    );
+
+    emit(
+      currentState.copyWith(
+        tasks: reorderedVisible,
+        allTasks: reorderedAll,
+        sortType: TaskSortType.manual,
+      ),
+    );
+  }
+
+  List<Task> _applySearchAndSort({
     required List<Task> tasks,
     required String query,
     required TaskSortType sortType,
   }) {
-    final normalizedQuery = query.toLowerCase();
+    final normalized = query.toLowerCase();
 
-    final filteredTasks = normalizedQuery.isEmpty
+    final filtered = normalized.isEmpty
         ? tasks.toList(growable: false)
         : tasks
               .where((task) {
-                return task.title.toLowerCase().contains(normalizedQuery) ||
-                    task.description.toLowerCase().contains(normalizedQuery);
+                return task.title.toLowerCase().contains(normalized) ||
+                    task.description.toLowerCase().contains(normalized);
               })
               .toList(growable: false);
 
-    filteredTasks.sort((a, b) {
-      switch (sortType) {
-        case TaskSortType.none:
-          return a.createdAt.compareTo(b.createdAt);
-        case TaskSortType.dueDateAsc:
-          return a.dueDate.compareTo(b.dueDate);
-        case TaskSortType.dueDateDesc:
-          return b.dueDate.compareTo(a.dueDate);
-        case TaskSortType.priorityHighToLow:
-          return _priorityValue(
-            b.priority,
-          ).compareTo(_priorityValue(a.priority));
-        case TaskSortType.priorityLowToHigh:
-          return _priorityValue(
-            a.priority,
-          ).compareTo(_priorityValue(b.priority));
-      }
-    });
+    if (sortType != TaskSortType.manual) {
+      filtered.sort((a, b) {
+        switch (sortType) {
+          case TaskSortType.manual:
+            return 0;
+          case TaskSortType.createdNewest:
+            return b.createdAt.compareTo(a.createdAt);
+          case TaskSortType.createdOldest:
+            return a.createdAt.compareTo(b.createdAt);
+          case TaskSortType.dueDateAsc:
+            return a.dueDate.compareTo(b.dueDate);
+          case TaskSortType.dueDateDesc:
+            return b.dueDate.compareTo(a.dueDate);
+          case TaskSortType.priorityHighToLow:
+            return _priorityRank(
+              b.priority,
+            ).compareTo(_priorityRank(a.priority));
+          case TaskSortType.priorityLowToHigh:
+            return _priorityRank(
+              a.priority,
+            ).compareTo(_priorityRank(b.priority));
+        }
+      });
+    }
 
-    return filteredTasks;
+    return filtered;
   }
 
-  int _priorityValue(TaskPriority priority) {
+  List<Task> _reorderAllTasks({
+    required List<Task> allTasks,
+    required List<Task> previousVisible,
+    required List<Task> reorderedVisible,
+  }) {
+    final visibleIds = previousVisible.map((task) => task.id).toSet();
+    final reorderedQueue = reorderedVisible.toList(growable: false);
+    var reorderIndex = 0;
+
+    final reorderedAll = <Task>[];
+    for (final task in allTasks) {
+      if (visibleIds.contains(task.id)) {
+        reorderedAll.add(reorderedQueue[reorderIndex]);
+        reorderIndex += 1;
+      } else {
+        reorderedAll.add(task);
+      }
+    }
+
+    return reorderedAll;
+  }
+
+  int _priorityRank(TaskPriority priority) {
     switch (priority) {
       case TaskPriority.low:
         return 0;

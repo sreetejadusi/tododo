@@ -2,71 +2,67 @@ import 'package:equatable/equatable.dart';
 
 import '../../data/models/task_model.dart';
 
-enum TaskStatus { initial, loading, success, failure }
-
 enum TaskSortType {
-  none,
+  manual,
+  createdNewest,
+  createdOldest,
   dueDateAsc,
   dueDateDesc,
   priorityHighToLow,
   priorityLowToHigh,
 }
 
-class TaskState extends Equatable {
-  const TaskState({
-    required this.status,
+abstract class TaskState extends Equatable {
+  const TaskState();
+
+  @override
+  List<Object?> get props => const [];
+}
+
+class TaskInitial extends TaskState {
+  const TaskInitial();
+}
+
+class TaskLoading extends TaskState {
+  const TaskLoading();
+}
+
+class TaskLoaded extends TaskState {
+  const TaskLoaded({
+    required this.tasks,
     required this.allTasks,
-    required this.visibleTasks,
-    required this.searchQuery,
     required this.sortType,
-    this.errorMessage,
+    required this.searchQuery,
   });
 
-  factory TaskState.initial() {
-    return const TaskState(
-      status: TaskStatus.initial,
-      allTasks: <Task>[],
-      visibleTasks: <Task>[],
-      searchQuery: '',
-      sortType: TaskSortType.none,
-      errorMessage: null,
-    );
-  }
-
-  final TaskStatus status;
+  final List<Task> tasks;
   final List<Task> allTasks;
-  final List<Task> visibleTasks;
-  final String searchQuery;
   final TaskSortType sortType;
-  final String? errorMessage;
+  final String searchQuery;
 
-  TaskState copyWith({
-    TaskStatus? status,
+  TaskLoaded copyWith({
+    List<Task>? tasks,
     List<Task>? allTasks,
-    List<Task>? visibleTasks,
-    String? searchQuery,
     TaskSortType? sortType,
-    String? errorMessage,
+    String? searchQuery,
   }) {
-    return TaskState(
-      status: status ?? this.status,
+    return TaskLoaded(
+      tasks: tasks ?? this.tasks,
       allTasks: allTasks ?? this.allTasks,
-      visibleTasks: visibleTasks ?? this.visibleTasks,
-      searchQuery: searchQuery ?? this.searchQuery,
       sortType: sortType ?? this.sortType,
-      errorMessage: errorMessage,
+      searchQuery: searchQuery ?? this.searchQuery,
     );
   }
 
   @override
-  List<Object?> get props {
-    return [
-      status,
-      allTasks,
-      visibleTasks,
-      searchQuery,
-      sortType,
-      errorMessage,
-    ];
-  }
+  List<Object?> get props => [tasks, allTasks, sortType, searchQuery];
+}
+
+class TaskError extends TaskState {
+  const TaskError(this.message);
+
+  final String message;
+
+  @override
+  List<Object?> get props => [message];
 }

@@ -5,6 +5,7 @@ import 'core/services/hive_service.dart';
 import 'core/services/service_locator.dart';
 import 'presentation/bloc/task_bloc.dart';
 import 'presentation/bloc/task_event.dart';
+import 'presentation/view/task_list_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,7 +25,28 @@ class Tododo extends StatelessWidget {
 
     return BlocProvider<TaskBloc>.value(
       value: getIt<TaskBloc>()..add(const LoadTasks()),
-      child: const Placeholder(),
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1565C0)),
+          useMaterial3: true,
+          appBarTheme: const AppBarTheme(centerTitle: false, elevation: 0),
+          cardTheme: CardThemeData(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          inputDecorationTheme: InputDecorationTheme(
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+        home: const TaskListScreen(),
+      ),
     );
   }
 }

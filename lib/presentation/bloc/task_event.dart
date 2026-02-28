@@ -58,3 +58,13 @@ class SearchTasks extends TaskEvent {
   @override
   List<Object?> get props => [query];
 }
+
+class ReorderTasks extends TaskEvent {
+  const ReorderTasks({required this.oldIndex, required this.newIndex});
+
+  final int oldIndex;
+  final int newIndex;
+
+  @override
+  List<Object?> get props => [oldIndex, newIndex];
+}
