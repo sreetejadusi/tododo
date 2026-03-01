@@ -39,7 +39,7 @@ class TaskListScreen extends StatelessWidget {
               ),
               PopupMenuItem(
                 value: TaskSortType.dueDateDesc,
-                child: Text('Due Date: Oldest'),
+                child: Text('Due Date: Latest'),
               ),
               PopupMenuItem(
                 value: TaskSortType.createdNewest,
@@ -223,11 +223,7 @@ class TaskListScreen extends StatelessWidget {
   }
 
   Future<void> _openEditor(BuildContext context, {Task? task}) {
-    return Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => CreateEditTaskScreen(initialTask: task),
-      ),
-    );
+    return showTaskEditorSheet(context, initialTask: task);
   }
 }
 

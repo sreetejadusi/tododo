@@ -68,7 +68,10 @@ class TaskListItem extends StatelessWidget {
                       spacing: 8,
                       runSpacing: 6,
                       children: [
-                        _PriorityChip(priority: task.priority),
+                        _PriorityChip(
+                          priority: task.priority,
+                          isCompleted: isCompleted,
+                        ),
                         _InfoChip(
                           label: 'Due ${_formatDate(task.dueDate)}',
                           isCompleted: isCompleted,
@@ -88,24 +91,35 @@ class TaskListItem extends StatelessWidget {
   }
 
   String _formatDate(DateTime date) {
+    final hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
+    final minute = date.minute.toString().padLeft(2, '0');
+    final suffix = date.hour >= 12 ? 'PM' : 'AM';
     final month = date.month.toString().padLeft(2, '0');
     final day = date.day.toString().padLeft(2, '0');
-    return '${date.year}-$month-$day';
+    return '${date.year}-$month-$day $hour:$minute $suffix';
   }
 }
 
 class _PriorityChip extends StatelessWidget {
-  const _PriorityChip({required this.priority});
+  const _PriorityChip({required this.priority, required this.isCompleted});
 
-  final TaskPriority priority;
+  final TaskPriority? priority;
+  final bool isCompleted;
 
   @override
   Widget build(BuildContext context) {
-    final color = switch (priority) {
-      TaskPriority.low => Colors.green,
-      TaskPriority.medium => Colors.orange,
-      TaskPriority.high => Colors.red,
-    };
+    if (priority == null) {
+      return Container();
+    }
+
+    final resolvedPriority = priority!;
+    final color = isCompleted
+        ? Colors.grey
+        : switch (resolvedPriority) {
+            TaskPriority.low => Colors.green,
+            TaskPriority.medium => Colors.orange,
+            TaskPriority.high => Colors.red,
+          };
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -114,7 +128,7 @@ class _PriorityChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        priority.name.toUpperCase(),
+        resolvedPriority.name.toUpperCase(),
         style: TextStyle(
           color: color,
           fontWeight: FontWeight.w600,

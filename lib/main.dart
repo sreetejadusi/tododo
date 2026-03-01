@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'core/services/hive_service.dart';
+import 'core/services/notification_service.dart';
 import 'core/services/service_locator.dart';
 import 'presentation/bloc/task_bloc.dart';
 import 'presentation/bloc/task_event.dart';
@@ -11,6 +12,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await HiveService().init();
   await setupServiceLocator();
+  await getIt<NotificationService>().init();
   runApp(const Tododo());
 }
 
@@ -28,7 +30,7 @@ class Tododo extends StatelessWidget {
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1565C0)),
+          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4285f4)),
           useMaterial3: true,
           appBarTheme: const AppBarTheme(centerTitle: false, elevation: 0),
           cardTheme: CardThemeData(

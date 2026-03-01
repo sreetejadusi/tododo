@@ -5,18 +5,20 @@ class Task {
     required this.id,
     required this.title,
     required this.description,
-    required this.priority,
+    this.priority,
     required this.dueDate,
     required this.createdAt,
+    this.remindBeforeMinutes = 30,
     this.isCompleted = false,
   });
 
   final String id;
   final String title;
   final String description;
-  final TaskPriority priority;
+  final TaskPriority? priority;
   final DateTime dueDate;
   final DateTime createdAt;
+  final int remindBeforeMinutes;
   final bool isCompleted;
 
   Task copyWith({
@@ -26,6 +28,7 @@ class Task {
     TaskPriority? priority,
     DateTime? dueDate,
     DateTime? createdAt,
+    int? remindBeforeMinutes,
     bool? isCompleted,
   }) {
     return Task(
@@ -35,6 +38,7 @@ class Task {
       priority: priority ?? this.priority,
       dueDate: dueDate ?? this.dueDate,
       createdAt: createdAt ?? this.createdAt,
+      remindBeforeMinutes: remindBeforeMinutes ?? this.remindBeforeMinutes,
       isCompleted: isCompleted ?? this.isCompleted,
     );
   }
@@ -44,9 +48,10 @@ class Task {
       'id': id,
       'title': title,
       'description': description,
-      'priority': priority.name,
+      'priority': priority?.name,
       'dueDate': dueDate.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
+      'remindBeforeMinutes': remindBeforeMinutes,
       'isCompleted': isCompleted,
     };
   }
@@ -56,12 +61,15 @@ class Task {
       id: json['id'] as String,
       title: json['title'] as String,
       description: json['description'] as String,
-      priority: TaskPriority.values.firstWhere(
-        (value) => value.name == json['priority'],
-        orElse: () => TaskPriority.low,
-      ),
+      priority: (json['priority'] as String?) == null
+          ? null
+          : TaskPriority.values.firstWhere(
+              (value) => value.name == json['priority'],
+              orElse: () => TaskPriority.low,
+            ),
       dueDate: DateTime.parse(json['dueDate'] as String),
       createdAt: DateTime.parse(json['createdAt'] as String),
+      remindBeforeMinutes: json['remindBeforeMinutes'] as int? ?? 30,
       isCompleted: json['isCompleted'] as bool? ?? false,
     );
   }

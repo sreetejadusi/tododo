@@ -1,14 +1,18 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../core/services/notification_service.dart';
 import '../../data/models/task_model.dart';
 import '../../data/repositories/task_repository.dart';
 import 'task_event.dart';
 import 'task_state.dart';
 
 class TaskBloc extends Bloc<TaskEvent, TaskState> {
-  TaskBloc({required TaskRepository taskRepository})
-    : _taskRepository = taskRepository,
-      super(const TaskInitial()) {
+  TaskBloc({
+    required TaskRepository taskRepository,
+    required NotificationService notificationService,
+  }) : _taskRepository = taskRepository,
+       _notificationService = notificationService,
+       super(const TaskInitial()) {
     on<LoadTasks>(_onLoadTasks);
     on<AddTask>(_onAddTask);
     on<UpdateTask>(_onUpdateTask);
@@ -19,10 +23,13 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
   }
 
   final TaskRepository _taskRepository;
+  final NotificationService _notificationService;
 
   Future<void> _onLoadTasks(LoadTasks event, Emitter<TaskState> emit) async {
     final previousState = state;
-    emit(const TaskLoading());
+    if (previousState is! TaskLoaded) {
+      emit(const TaskLoading());
+    }
 
     try {
       final storedTasks = await _taskRepository.getTasks();
@@ -38,6 +45,8 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         query: searchQuery,
         sortType: sortType,
       );
+
+      await _notificationService.syncAllTaskReminders(storedTasks);
 
       emit(
         TaskLoaded(
@@ -55,6 +64,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
   Future<void> _onAddTask(AddTask event, Emitter<TaskState> emit) async {
     try {
       await _taskRepository.createTask(event.task);
+      await _notificationService.scheduleTaskReminder(event.task);
       add(const LoadTasks());
     } catch (error) {
       emit(TaskError(error.toString()));
@@ -64,6 +74,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
   Future<void> _onUpdateTask(UpdateTask event, Emitter<TaskState> emit) async {
     try {
       await _taskRepository.updateTask(event.task);
+      await _notificationService.scheduleTaskReminder(event.task);
       add(const LoadTasks());
     } catch (error) {
       emit(TaskError(error.toString()));
@@ -73,6 +84,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
   Future<void> _onDeleteTask(DeleteTask event, Emitter<TaskState> emit) async {
     try {
       await _taskRepository.deleteTask(event.id);
+      await _notificationService.cancelTaskReminder(event.id);
       add(const LoadTasks());
     } catch (error) {
       emit(TaskError(error.toString()));
@@ -218,7 +230,11 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     return reorderedAll;
   }
 
-  int _priorityRank(TaskPriority priority) {
+  int _priorityRank(TaskPriority? priority) {
+    if (priority == null) {
+      return -1;
+    }
+
     switch (priority) {
       case TaskPriority.low:
         return 0;

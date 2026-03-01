@@ -5,23 +5,42 @@ import '../../data/models/task_model.dart';
 import '../bloc/task_bloc.dart';
 import '../bloc/task_event.dart';
 
-class CreateEditTaskScreen extends StatefulWidget {
-  const CreateEditTaskScreen({this.initialTask, super.key});
+Future<void> showTaskEditorSheet(BuildContext context, {Task? initialTask}) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: false,
+    backgroundColor: Theme.of(context).colorScheme.surface,
+    clipBehavior: Clip.antiAlias,
+    showDragHandle: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (_) => _TaskEditorSheet(initialTask: initialTask),
+  );
+}
+
+class _TaskEditorSheet extends StatefulWidget {
+  const _TaskEditorSheet({this.initialTask});
 
   final Task? initialTask;
 
   @override
-  State<CreateEditTaskScreen> createState() => _CreateEditTaskScreenState();
+  State<_TaskEditorSheet> createState() => _TaskEditorSheetState();
 }
 
-class _CreateEditTaskScreenState extends State<CreateEditTaskScreen> {
+class _TaskEditorSheetState extends State<_TaskEditorSheet> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _descriptionFocusNode = FocusNode();
 
-  late TaskPriority _selectedPriority;
+  static const List<int> _remindBeforeOptions = [5, 10, 15, 30];
+
+  TaskPriority? _selectedPriority;
   late DateTime _selectedDueDate;
+  late TimeOfDay _selectedDueTime;
+  late int _selectedRemindBefore;
 
   bool get _isEditMode => widget.initialTask != null;
 
@@ -31,9 +50,11 @@ class _CreateEditTaskScreenState extends State<CreateEditTaskScreen> {
     final initial = widget.initialTask;
     _titleController.text = initial?.title ?? '';
     _descriptionController.text = initial?.description ?? '';
-    _selectedPriority = initial?.priority ?? TaskPriority.medium;
+    _selectedPriority = initial?.priority;
     _selectedDueDate =
         initial?.dueDate ?? DateTime.now().add(const Duration(days: 1));
+    _selectedDueTime = TimeOfDay.fromDateTime(_selectedDueDate);
+    _selectedRemindBefore = initial?.remindBeforeMinutes ?? 15;
   }
 
   @override
@@ -46,94 +67,138 @@ class _CreateEditTaskScreenState extends State<CreateEditTaskScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(_isEditMode ? 'Edit Task' : 'Create Task')),
-      body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              TextFormField(
-                controller: _titleController,
-                autofocus: !_isEditMode,
-                textInputAction: TextInputAction.next,
-                onFieldSubmitted: (_) {
-                  FocusScope.of(context).requestFocus(_descriptionFocusNode);
-                },
-                decoration: const InputDecoration(
-                  labelText: 'Title',
-                  border: OutlineInputBorder(),
+    final insets = MediaQuery.of(context).viewInsets.bottom;
+
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      padding: EdgeInsets.only(bottom: insets),
+      child: SafeArea(
+        top: false,
+        child: FractionallySizedBox(
+          heightFactor: 0.9,
+          child: Form(
+            key: _formKey,
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8.0,
+                    vertical: 12,
+                  ),
+                  child: Text(
+                    _isEditMode ? 'Edit Task' : 'New Task',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
                 ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Title is required';
-                  }
-                  if (value.trim().length < 3) {
-                    return 'Title must be at least 3 characters';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _descriptionController,
-                focusNode: _descriptionFocusNode,
-                maxLines: 4,
-                textInputAction: TextInputAction.done,
-                onFieldSubmitted: (_) => _submit(),
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  border: OutlineInputBorder(),
-                  alignLabelWithHint: true,
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _titleController,
+                  autofocus: !_isEditMode,
+                  textInputAction: TextInputAction.next,
+                  onFieldSubmitted: (_) {
+                    FocusScope.of(context).requestFocus(_descriptionFocusNode);
+                  },
+                  decoration: const InputDecoration(labelText: 'Title'),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Title is required';
+                    }
+                    return null;
+                  },
                 ),
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<TaskPriority>(
-                initialValue: _selectedPriority,
-                decoration: const InputDecoration(
-                  labelText: 'Priority',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _descriptionController,
+                  focusNode: _descriptionFocusNode,
+                  maxLines: 3,
+                  textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (_) => _submit(),
+                  decoration: const InputDecoration(labelText: 'Description'),
                 ),
-                items: TaskPriority.values
-                    .map(
-                      (priority) => DropdownMenuItem(
-                        value: priority,
-                        child: Text(priority.name.toUpperCase()),
-                      ),
-                    )
-                    .toList(growable: false),
-                onChanged: (value) {
-                  if (value == null) {
-                    return;
-                  }
-                  setState(() {
-                    _selectedPriority = value;
-                  });
-                },
-              ),
-              const SizedBox(height: 16),
-              InputDecorator(
-                decoration: const InputDecoration(
-                  labelText: 'Due Date',
-                  border: OutlineInputBorder(),
-                ),
-                child: Row(
+                const SizedBox(height: 14),
+                Text('Priority', style: Theme.of(context).textTheme.labelLarge),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
-                    Expanded(child: Text(_formatDate(_selectedDueDate))),
-                    TextButton(
-                      onPressed: _pickDueDate,
-                      child: const Text('Choose date'),
+                    ChoiceChip(
+                      label: const Text('None'),
+                      selected: _selectedPriority == null,
+                      onSelected: (_) {
+                        setState(() {
+                          _selectedPriority = null;
+                        });
+                      },
+                    ),
+                    ...TaskPriority.values.map(
+                      (priority) => ChoiceChip(
+                        label: Text(priority.name.toUpperCase()),
+                        selected: _selectedPriority == priority,
+                        onSelected: (_) {
+                          setState(() {
+                            _selectedPriority = priority;
+                          });
+                        },
+                      ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 24),
-              FilledButton(
-                onPressed: _submit,
-                child: Text(_isEditMode ? 'Update Task' : 'Create Task'),
-              ),
-            ],
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _DateTimeTile(
+                        label: 'Due Date',
+                        value: _formatDate(_selectedDueDate),
+                        onTap: _pickDueDate,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _DateTimeTile(
+                        label: 'Due Time',
+                        value: _formatTime(_selectedDueTime),
+                        onTap: _pickDueTime,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'Remind Before',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _remindBeforeOptions
+                      .map(
+                        (minutes) => ChoiceChip(
+                          label: Text('$minutes min'),
+                          selected: _selectedRemindBefore == minutes,
+                          onSelected: (_) {
+                            setState(() {
+                              _selectedRemindBefore = minutes;
+                            });
+                          },
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: _submit,
+                    child: Text(_isEditMode ? 'Update Task' : 'Create Task'),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -158,6 +223,21 @@ class _CreateEditTaskScreenState extends State<CreateEditTaskScreen> {
     });
   }
 
+  Future<void> _pickDueTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _selectedDueTime,
+    );
+
+    if (picked == null) {
+      return;
+    }
+
+    setState(() {
+      _selectedDueTime = picked;
+    });
+  }
+
   void _submit() {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -165,6 +245,13 @@ class _CreateEditTaskScreenState extends State<CreateEditTaskScreen> {
 
     final existing = widget.initialTask;
     final now = DateTime.now();
+    final dueDateTime = DateTime(
+      _selectedDueDate.year,
+      _selectedDueDate.month,
+      _selectedDueDate.day,
+      _selectedDueTime.hour,
+      _selectedDueTime.minute,
+    );
 
     final task = Task(
       id: existing?.id ?? now.microsecondsSinceEpoch.toString(),
@@ -173,8 +260,9 @@ class _CreateEditTaskScreenState extends State<CreateEditTaskScreen> {
           ? _titleController.text.trim()
           : _descriptionController.text.trim(),
       priority: _selectedPriority,
-      dueDate: _selectedDueDate,
+      dueDate: dueDateTime,
       createdAt: existing?.createdAt ?? now,
+      remindBeforeMinutes: _selectedRemindBefore,
       isCompleted: existing?.isCompleted ?? false,
     );
 
@@ -191,5 +279,50 @@ class _CreateEditTaskScreenState extends State<CreateEditTaskScreen> {
     final month = date.month.toString().padLeft(2, '0');
     final day = date.day.toString().padLeft(2, '0');
     return '${date.year}-$month-$day';
+  }
+
+  String _formatTime(TimeOfDay time) {
+    final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
+    final minute = time.minute.toString().padLeft(2, '0');
+    final suffix = time.period == DayPeriod.am ? 'AM' : 'PM';
+    return '$hour:$minute $suffix';
+  }
+}
+
+class _DateTimeTile extends StatelessWidget {
+  const _DateTimeTile({
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
+
+  final String label;
+  final String value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Ink(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: Theme.of(context).textTheme.labelMedium),
+            const SizedBox(height: 4),
+            Text(value, style: Theme.of(context).textTheme.bodyLarge),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -3,6 +3,7 @@ import 'package:get_it/get_it.dart';
 import '../../data/repositories/task_repository.dart';
 import '../../presentation/bloc/task_bloc.dart';
 import 'hive_service.dart';
+import 'notification_service.dart';
 
 final GetIt getIt = GetIt.instance;
 
@@ -17,9 +18,16 @@ Future<void> setupServiceLocator() async {
     );
   }
 
+  if (!getIt.isRegistered<NotificationService>()) {
+    getIt.registerLazySingleton<NotificationService>(NotificationService.new);
+  }
+
   if (!getIt.isRegistered<TaskBloc>()) {
     getIt.registerLazySingleton<TaskBloc>(
-      () => TaskBloc(taskRepository: getIt<TaskRepository>()),
+      () => TaskBloc(
+        taskRepository: getIt<TaskRepository>(),
+        notificationService: getIt<NotificationService>(),
+      ),
     );
   }
 }
